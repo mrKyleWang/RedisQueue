@@ -1,6 +1,9 @@
 package top.kylewang.redismq.handler;
 
+import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.RedisTemplate;
+
+import java.util.List;
 
 /**
  * @author KyleWang
@@ -12,23 +15,27 @@ public class Receiver implements Runnable {
 
 	private RedisTemplate<String, String> redisTemplate;
 
-	Receiver(RedisTemplate<String, String> redisTemplate){
-	    this.redisTemplate = redisTemplate;
-    }
+	Receiver(RedisTemplate<String, String> redisTemplate) {
+		this.redisTemplate = redisTemplate;
+	}
 
 	@Override
 	public void run() {
 		while (true) {
-			try {
-				Thread.sleep(1000);
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}
-			System.out.println("-------------" + Thread.currentThread().getName() + "-----run--------");
-			String tag = redisTemplate.opsForList().leftPop("tag");
-			if (tag != null) {
-				System.out.println(tag);
-			}
+			redisTemplate.execute((RedisCallback<String>) redisConnection -> {
+				byte[] keyByte = redisTemplate.getStringSerializer().serialize("tag");
+				if (redisConnection.exists(keyByte)) {
+					List<byte[]> bytes = redisConnection.bLPop(0, keyByte);
+					if (bytes == null) {
+						return null;
+					}
+					for (byte[] aByte : bytes) {
+						String value = redisTemplate.getStringSerializer().deserialize(aByte);
+						System.out.println(value);
+					}
+				}
+				return null;
+			});
 		}
 	}
 }
